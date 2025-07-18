@@ -17,7 +17,7 @@ import java.util.Map;
 @Service
 public class SummaryService {
 
-    private static final String QUIDAX_API_TICKERS_URL = "https://api.quidax.com/api/v1/tickers";
+    private static final String QUIDAX_API_TICKERS_URL = "https://app.quidax.io/api/v1/markets/tickers";
     private final RestTemplate restTemplate;
 
     public SummaryService() {
