@@ -1,6 +1,9 @@
 package com.codewithudo.quidaxmarketsummary.service;
 
+import com.codewithudo.quidaxmarketsummary.dto.MarketData;
 import com.codewithudo.quidaxmarketsummary.dto.MarketSummary;
+import com.codewithudo.quidaxmarketsummary.dto.QuidaxResponse;
+import com.codewithudo.quidaxmarketsummary.dto.Ticker;
 import lombok.Data;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
@@ -29,37 +32,38 @@ public class SummaryService {
      * @return A list of MarketSummary objects.
      */
     public List<MarketSummary> getMarketSummaries() {
-        // Fetch the raw data from the Quidax API.
-        ResponseEntity<Map<String, QuidaxTicker>> response = restTemplate.exchange(
+        // 1. Tell RestTemplate to expect the full QuidaxResponse object
+        ResponseEntity<QuidaxResponse> response = restTemplate.exchange(
                 QUIDAX_API_TICKERS_URL,
                 HttpMethod.GET,
                 null,
                 new ParameterizedTypeReference<>() {}
         );
 
-        Map<String, QuidaxTicker> tickers = response.getBody();
+        QuidaxResponse body = response.getBody();
         List<MarketSummary> summaries = new ArrayList<>();
 
-        if (tickers != null) {
-            // Iterate over each market ticker returned by the API.
-            for (Map.Entry<String, QuidaxTicker> entry : tickers.entrySet()) {
+        if (body != null && "success".equals(body.getStatus())) {
+            // 2. Get the map of MarketData from the response
+            Map<String, MarketData> marketDataMap = body.getData();
+
+            for (Map.Entry<String, MarketData> entry : marketDataMap.entrySet()) {
                 String marketName = entry.getKey();
-                QuidaxTicker tickerData = entry.getValue();
+                // 3. Unwrap the final Ticker object
+                Ticker ticker = entry.getValue().getTicker();
 
-                // Create a new summary object for our response.
-                MarketSummary summary = new MarketSummary();
-                summary.setMarket(marketName.replace("_", "/").toUpperCase());
-                summary.setPrice(tickerData.getLast());
-                summary.setVolume(tickerData.getVol());
-                summary.setHigh(tickerData.getHigh());
-                summary.setLow(tickerData.getLow());
-
-                // Calculate the 24h percentage change.
-                summary.setPriceChangePercent(
-                        calculatePriceChangePercent(tickerData.getLast(), tickerData.getOpen())
-                );
-
-                summaries.add(summary);
+                if (ticker != null) {
+                    MarketSummary summary = new MarketSummary();
+                    summary.setMarket(marketName.replace("_", "/").toUpperCase());
+                    summary.setPrice(ticker.getPrice());
+                    summary.setVolume(ticker.getVolume());
+                    summary.setHigh(ticker.getHigh());
+                    summary.setLow(ticker.getLow());
+                    summary.setPriceChangePercent(
+                            calculatePriceChangePercent(ticker.getPrice(), ticker.getOpen())
+                    );
+                    summaries.add(summary);
+                }
             }
         }
         return summaries;
@@ -95,12 +99,4 @@ public class SummaryService {
      * Inner class to model the exact structure of the Quidax tickers response.
      * This keeps the external API's structure separate from our application's DTO.
      */
-    @Data
-    private static class QuidaxTicker {
-        private String open;
-        private String low;
-        private String high;
-        private String last;
-        private String vol;
-    }
 }
